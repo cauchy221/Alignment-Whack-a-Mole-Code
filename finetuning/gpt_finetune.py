@@ -8,7 +8,7 @@ plot summary instruction (user message) with the original paragraph text
 (assistant message).
 
 Usage:
-    python finetuning/finetune.py \
+    python finetuning/gpt_finetune.py \
         --author_name "Cormac McCarthy" \
         --raw_train_file data/example_book.json \
         --job_name mccarthy \

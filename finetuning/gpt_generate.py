@@ -14,7 +14,7 @@ results.  The batch output must be post-processed into the evaluation input
 format (see data/example_gens_gpt.json) before running memorization metrics.
 
 Usage:
-    python finetuning/generate.py \
+    python finetuning/gpt_generate.py \
         --job_name mccarthy_test \
         --test_file data/example_book.json \
         --reformat_file batch_input.jsonl \
@@ -64,8 +64,8 @@ def _build_batch_requests(test_data: list, args) -> None:
                     "role": "system",
                     "content": (
                         "The paragraph you output must (a) use all the sentences in the 'Content', "
-                        "(b) keep them in the order in which they are mentioned in the 'Content' "
-                        "(c) doesn't skip any detail or go haywire"
+                        "(b) keep them in the order in which they are mentioned in the 'Content', "
+                        "and (c) not skip any detail or go haywire"
                     ),
                 },
                 {"role": "user", "content": example["instruction"]},

@@ -2,7 +2,7 @@
 
 This repository contains the data preprocessing pipeline, finetuning scripts, memorization evaluation code, and analysis scripts for our paper.
 
-We provide partial example files in `[data/](data/)` containing a small subset of paragraphs and generations from *The Road* by Cormac McCarthy. Full book content and model generations are not included because the books are copyrighted and the generations contain large portions of verbatim text. 
+We provide partial example files in [`data/`](data/) containing a small subset of paragraphs and generations from *The Road* by Cormac McCarthy. Full book content and model generations are not included because the books are copyrighted and the generations contain large portions of verbatim text.
 
 ## Setup
 
@@ -20,7 +20,25 @@ source .venv/bin/activate
 uv pip install html2text natsort ftfy openai tqdm nltk numpy
 ```
 
-Set your OpenAI API key (required for preprocessing, finetuning, and generation):
+For Gemini finetuning and generation, also install:
+
+```bash
+uv pip install google-genai google-cloud-storage vertexai
+```
+
+For DeepSeek finetuning and generation via [Tinker](https://tinker-docs.thinkingmachines.ai/), also install:
+
+```bash
+uv pip install tinker tinker-cookbook datasets
+```
+
+Set your Tinker API key (sign up at https://auth.thinkingmachines.ai/sign-up):
+
+```bash
+export TINKER_API_KEY="your-key-here"
+```
+
+Set your OpenAI API key (required for preprocessing and GPT-4o finetuning/generation):
 
 ```bash
 export OPENAI_API_KEY="your-key-here"
@@ -35,7 +53,7 @@ nltk.download('punkt_tab')
 
 ## Data Preprocessing
 
-We assume you already have the EPUB file for each book. The preprocessing pipeline converts an EPUB into a JSON file of paragraph chunks with plot summaries, ready for finetuning and evaluation. The output format matches `[data/example_book.json](data/example_book.json)`.
+We assume you already have the EPUB file for each book. The preprocessing pipeline converts an EPUB into a JSON file of paragraph chunks with plot summaries, ready for finetuning and evaluation. The output format matches [`data/example_book.json`](data/example_book.json).
 
 ### Step 1: Convert EPUB to plain text
 
@@ -65,30 +83,84 @@ This step:
 
 ## Finetuning and Generation
 
-We provide example scripts for finetuning GPT-4o and generating completions via the OpenAI API. These scripts are provided as reference implementations for our GPT-4o experiments; adapting them to other providers (Gemini, DeepSeek) requires using their respective APIs or other platforms.
+We provide scripts for finetuning and generating completions via the OpenAI, Vertex AI, and [Tinker](https://tinker-docs.thinkingmachines.ai/) APIs. We sample 100 completions per paragraph at temperature 1.0 (see Appendix A.3 of the paper).
 
-### Finetuning
+### GPT-4o
 
-Convert preprocessed data to OpenAI's chat format and launch a finetuning job:
+Finetune via the OpenAI API:
 
 ```bash
-python finetuning/finetune.py \
+python finetuning/gpt_finetune.py \
     --author_name "Cormac McCarthy" \
     --raw_train_file data/example_book.json \
     --job_name mccarthy \
     --no_wait
 ```
 
-### Generation
-
-Submit generation requests for held-out test paragraphs via the OpenAI Batch API. We sample 100 completions per paragraph at temperature 1.0 (see Appendix A.3 of the paper):
+Generate via the OpenAI Batch API:
 
 ```bash
-python finetuning/generate.py \
+python finetuning/gpt_generate.py \
     --job_name mccarthy_test \
     --test_file data/example_book.json \
     --reformat_file batch_input.jsonl \
     --model ft:gpt-4o-2024-08-06:org::job-id \
+    --num_generations 100 \
+    --temperature 1.0
+```
+
+### Gemini-2.5-Pro
+
+Finetune via the Vertex AI API:
+
+```bash
+python finetuning/gemini_finetune.py \
+    --project_id your-gcp-project \
+    --bucket_name your-gcs-bucket \
+    --raw_train_file data/example_book.json \
+    --job_name mccarthy \
+    --no_wait
+```
+
+Generate via the Vertex AI Batch API:
+
+```bash
+python finetuning/gemini_generate.py \
+    --project_id your-gcp-project \
+    --bucket_name your-gcs-bucket \
+    --test_file data/example_book.json \
+    --model projects/PROJECT_NUM/locations/REGION/models/MODEL_ID \
+    --job_name mccarthy_test \
+    --num_generations 100 \
+    --temperature 1.0
+```
+
+### DeepSeek-V3.1
+
+First convert the preprocessed data to Tinker's chat JSONL format (no system prompt for DeepSeek):
+
+```bash
+python finetuning/deepseek_convert.py \
+    --input_file data/example_book.json \
+    --output_file train_messages.jsonl
+```
+
+Finetune via [Tinker](https://tinker-docs.thinkingmachines.ai/) with LoRA (rank=32, lr=5e-4, 3 epochs):
+
+```bash
+python finetuning/deepseek_train.py \
+    dataset=train_messages.jsonl \
+    log_path=./logs/deepseek-mccarthy-epoch3
+```
+
+Generate completions using the finetuned model:
+
+```bash
+python finetuning/deepseek_generate.py \
+    --test_data train_messages.jsonl \
+    --raw_book data/example_book.json \
+    --generation_output generations_deepseek.json \
+    --model_path "tinker://JOB_ID:train:0/sampler_weights/final" \
     --num_generations 100 \
     --temperature 1.0
 ```
@@ -131,7 +203,7 @@ python evaluation/memorization_eval_metrics.py \
 
 ### Input format
 
-**Test book** (`--test_book`): JSON list of paragraph dicts. See `[data/example_book.json](data/example_book.json)` for a complete example.
+**Test book** (`--test_book`): JSON list of paragraph dicts. See [`data/example_book.json`](data/example_book.json) for a complete example.
 
 ```json
 [
@@ -147,7 +219,7 @@ python evaluation/memorization_eval_metrics.py \
 ]
 ```
 
-**Generations** (`--generation_file`): JSON list with a `generations` field per paragraph. See `[data/example_gens_gpt.json](data/example_gens_gpt.json)` for a complete example.
+**Generations** (`--generation_file`): JSON list with a `generations` field per paragraph. See [`data/example_gens_gpt.json`](data/example_gens_gpt.json) for a complete example.
 
 ```json
 [
