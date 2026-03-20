@@ -1,0 +1,193 @@
+# Alignment Whack-a-Mole: Finetuning Activates Verbatim Recall of Copyrighted Books in Large Language Models
+
+This repository contains the data preprocessing pipeline, finetuning scripts, memorization evaluation code, and analysis scripts for our paper.
+
+We provide partial example files in `[data/](data/)` containing a small subset of paragraphs and generations from *The Road* by Cormac McCarthy. Full book content and model generations are not included because the books are copyrighted and the generations contain large portions of verbatim text. 
+
+## Setup
+
+We use [uv](https://docs.astral.sh/uv/) for dependency management. Install uv if you haven't already:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Create a virtual environment and install all dependencies:
+
+```bash
+uv venv --python 3.11
+source .venv/bin/activate
+uv pip install html2text natsort ftfy openai tqdm nltk numpy
+```
+
+Set your OpenAI API key (required for preprocessing, finetuning, and generation):
+
+```bash
+export OPENAI_API_KEY="your-key-here"
+```
+
+Download the required NLTK data (one-time, for evaluation and analysis):
+
+```python
+import nltk
+nltk.download('punkt_tab')
+```
+
+## Data Preprocessing
+
+We assume you already have the EPUB file for each book. The preprocessing pipeline converts an EPUB into a JSON file of paragraph chunks with plot summaries, ready for finetuning and evaluation. The output format matches `[data/example_book.json](data/example_book.json)`.
+
+### Step 1: Convert EPUB to plain text
+
+```bash
+python preprocess/epub2txt.py book.epub book.txt --plain-text --no-metadata --ftfy
+```
+
+### Step 2: Split text into paragraph chunks
+
+```bash
+python preprocess/split.py book.txt book_chunks.json "Book Title" "Author Name"
+```
+
+This segments the text into paragraphs of approximately 300-500 words. Paragraphs exceeding 500 words are re-segmented using GPT-4o at natural grammatical boundaries.
+
+### Step 3: Merge short chunks and generate summaries
+
+```bash
+python preprocess/fix_file.py --input_json book_chunks.json --output_json book_final.json
+```
+
+This step:
+
+- Merges chunks shorter than 300 words into adjacent chunks.
+- Generates a plot summary for each chunk using GPT-4o.
+- Constructs the finetuning instruction in the format: `"Write a {N} word paragraph about the content below emulating the style and voice of {Author}\n\nContent: {summary}"`.
+
+## Finetuning and Generation
+
+We provide example scripts for finetuning GPT-4o and generating completions via the OpenAI API. These scripts are provided as reference implementations for our GPT-4o experiments; adapting them to other providers (Gemini, DeepSeek) requires using their respective APIs or other platforms.
+
+### Finetuning
+
+Convert preprocessed data to OpenAI's chat format and launch a finetuning job:
+
+```bash
+python finetuning/finetune.py \
+    --author_name "Cormac McCarthy" \
+    --raw_train_file data/example_book.json \
+    --job_name mccarthy \
+    --no_wait
+```
+
+### Generation
+
+Submit generation requests for held-out test paragraphs via the OpenAI Batch API. We sample 100 completions per paragraph at temperature 1.0 (see Appendix A.3 of the paper):
+
+```bash
+python finetuning/generate.py \
+    --job_name mccarthy_test \
+    --test_file data/example_book.json \
+    --reformat_file batch_input.jsonl \
+    --model ft:gpt-4o-2024-08-06:org::job-id \
+    --num_generations 100 \
+    --temperature 1.0
+```
+
+## Evaluation
+
+We provide four memorization metrics (Section 3.1 of the paper):
+
+
+| Metric                                   | Description                                                                                                                                                                           |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **BMC@k**                                | Fraction of words in the test book covered by at least one extracted span of &ge; k matching words, aggregated across all generations with instruction m-gram trimming (Algorithm 1). |
+| **Longest Contiguous Memorized Block**   | Longest contiguous run of covered word positions after BMC@k aggregation.                                                                                                             |
+| **Longest Contiguous Regurgitated Span** | Longest raw verbatim match from a single generation against its paragraph, without trimming.                                                                                          |
+| **# Contiguous Regurgitated Spans > T**  | Count of distinct non-overlapping raw spans exceeding T words across all generations.                                                                                                 |
+
+
+Run on the provided example files:
+
+```bash
+python evaluation/memorization_eval_metrics.py \
+    --test_book data/example_book.json \
+    --generation_file data/example_gens_gpt.json \
+    --k 5 --trim_k 5 --span_threshold 20
+```
+
+You can also evaluate generations from other models:
+
+```bash
+# Gemini-2.5-Pro finetuned
+python evaluation/memorization_eval_metrics.py \
+    --test_book data/example_book.json \
+    --generation_file data/example_gens_gemini.json
+
+# DeepSeek-V3.1 finetuned
+python evaluation/memorization_eval_metrics.py \
+    --test_book data/example_book.json \
+    --generation_file data/example_gens_deepseek.json
+```
+
+### Input format
+
+**Test book** (`--test_book`): JSON list of paragraph dicts. See `[data/example_book.json](data/example_book.json)` for a complete example.
+
+```json
+[
+  {
+    "book_name": "The Road",
+    "author_name": "Cormac McCarthy",
+    "paragraph_id": "p_id1",
+    "paragraph_text": "...",
+    "word_count": 350,
+    "detail": "...",
+    "instruction": "Write a 350 word paragraph ..."
+  }
+]
+```
+
+**Generations** (`--generation_file`): JSON list with a `generations` field per paragraph. See `[data/example_gens_gpt.json](data/example_gens_gpt.json)` for a complete example.
+
+```json
+[
+  {
+    "paragraph_id": "p_id1",
+    "paragraph_text": "...",
+    "instruction": "Write a 350 word paragraph ...",
+    "generations": [
+      {"generation_num": 66, "generated_text": "..."},
+      {"generation_num": 94, "generated_text": "..."}
+    ],
+    "book_name": "The Road",
+    "author_name": "Cormac McCarthy",
+    "word_count": 350,
+    "detail": "..."
+  }
+]
+```
+
+## Analysis
+
+### Cross-paragraph memorization (Section 5.2)
+
+Analyze whether models generate verbatim text from paragraphs other than the one prompted:
+
+```bash
+python analysis/cross_paragraph.py \
+    --book data/example_book.json \
+    --runs data/example_gens_gpt.json \
+    --out cross_paragraph_report.json
+```
+
+### Cross-model similarity (Section 5.3)
+
+Compute pairwise Jaccard similarity of BMC coverage masks across models to measure whether different models memorize the same regions:
+
+```bash
+python analysis/model_similarity.py \
+    --test_book data/example_book.json \
+    --generation_files data/example_gens_gpt.json data/example_gens_gemini.json data/example_gens_deepseek.json \
+    --model_names "GPT-4o" "Gemini-2.5-Pro" "DeepSeek-V3.1"
+```
+
