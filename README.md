@@ -1,6 +1,6 @@
 # Alignment Whack-a-Mole: Finetuning Activates Verbatim Recall of Copyrighted Books in Large Language Models
 
-Check out our [demo](https://cauchy221.github.io/Alignment-Whack-a-Mole/).
+The paper is now on [arxiv](https://arxiv.org/abs/2603.20957) and check out our [demo](https://cauchy221.github.io/Alignment-Whack-a-Mole/)!
 
 This repository contains the data preprocessing pipeline, finetuning scripts, memorization evaluation code, and analysis scripts for our paper.
 
