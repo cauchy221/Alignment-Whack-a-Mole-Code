@@ -265,3 +265,16 @@ python analysis/model_similarity.py \
     --model_names "GPT-4o" "Gemini-2.5-Pro" "DeepSeek-V3.1"
 ```
 
+
+## Citation
+```txt
+@misc{liu2026alignmentwhackamolefinetuning,
+  title={Alignment Whack-a-Mole : Finetuning Activates Verbatim Recall of Copyrighted Books in Large Language Models},
+  author={Xinyue Liu and Niloofar Mireshghallah and Jane C. Ginsburg and Tuhin Chakrabarty},
+  year={2026},
+  eprint={2603.20957},
+  archivePrefix={arXiv},
+  primaryClass={cs.CL},
+  url={https://arxiv.org/abs/2603.20957}
+}
+```
