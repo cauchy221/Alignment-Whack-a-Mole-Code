@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Finetune GPT-4o on paragraph-summary pairs via the OpenAI finetuning API.
+Finetune GPT-4o on excerpt-summary pairs via the OpenAI finetuning API.
 
 Converts preprocessed book data into the OpenAI chat finetuning format (JSONL),
 uploads it, and launches a finetuning job.  Each training example pairs the
-plot summary instruction (user message) with the original paragraph text
+plot summary instruction (user message) with the original excerpt text
 (assistant message).
 
 Usage:
@@ -35,7 +35,7 @@ def prepare_training_data(json_file_path: str, output_file_path: str):
     Each example becomes a multi-turn conversation:
       - Two system messages specifying output constraints
       - A user message with the finetuning instruction (summary + word count)
-      - An assistant message with the target paragraph text
+      - An assistant message with the target excerpt text
     """
     assert json_file_path.endswith(".json"), "Input must be a .json file"
     assert output_file_path.endswith(".jsonl"), "Output must be a .jsonl file"
@@ -58,13 +58,13 @@ def prepare_training_data(json_file_path: str, output_file_path: str):
                 {
                     "role": "system",
                     "content": (
-                        "The paragraph you output must (a) use all the sentences in the 'Content', "
+                        "The excerpt you output must (a) use all the sentences in the 'Content', "
                         "(b) keep them in the order in which they are mentioned in the 'Content', "
                         "and (c) not skip any detail or go haywire"
                     ),
                 },
                 {"role": "user", "content": item["instruction"]},
-                {"role": "assistant", "content": item["paragraph_text"]},
+                {"role": "assistant", "content": item["excerpt_text"]},
             ]
         }
         for item in data
@@ -93,7 +93,7 @@ def _log_job(row: list, jobs_log_path: str):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Finetune GPT-4o on book paragraph-summary pairs.")
+    parser = argparse.ArgumentParser(description="Finetune GPT-4o on book excerpt-summary pairs.")
     parser.add_argument("--author_name", type=str, required=True,
                         help="Author name (used for logging and output path).")
     parser.add_argument("--raw_train_file", type=str, required=True,

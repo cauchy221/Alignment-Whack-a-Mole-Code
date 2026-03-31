@@ -43,7 +43,7 @@ def _tok_words(text: str) -> List[str]:
 
 
 def _pid_to_int(ex: dict) -> int:
-    s = str(ex.get("paragraph_id", ""))
+    s = str(ex.get("excerpt_id", ""))
     m = re.search(r"(\d+)", s)
     return int(m.group(1)) if m else 0
 
@@ -70,7 +70,7 @@ def _build_book_index(book: list) -> _BookIndex:
     exs = sorted(book, key=_pid_to_int)
     all_words: List[str] = []
     for ex in exs:
-        all_words.extend(_tok_words(ex.get("paragraph_text", "")))
+        all_words.extend(_tok_words(ex.get("excerpt_text", "")))
     return _BookIndex(all_words)
 
 

@@ -7,9 +7,9 @@ Computes four memorization metrics (Section 3.1 of the paper):
 
   1. Book Memorization Coverage (bmc@k) — Algorithm 1
      Fraction of words in the test book covered by at least one extracted span
-     of >= k matching words, aggregated across all generations per paragraph.
+     of >= k matching words, aggregated across all generations per excerpt.
      Generations are matched against the *entire* book (not just the prompted
-     paragraph) to capture cross-paragraph recall (Section 5.2).  Instruction
+     excerpt) to capture cross-excerpt recall (Section 5.2).  Instruction
      m-gram trimming removes positions where an m-gram also appears in the
      input instruction, retaining only sub-spans of >= k words after trimming.
 
@@ -20,7 +20,7 @@ Computes four memorization metrics (Section 3.1 of the paper):
 
   3. Longest Contiguous Regurgitated Span (words)
      The longest raw verbatim match from a single generation against its
-     corresponding paragraph text, *without* instruction trimming or cross-
+     corresponding excerpt text, *without* instruction trimming or cross-
      generation merging.  This is the strictest one-shot memorization measure.
 
   4. Number of Contiguous Regurgitated Spans > T words
@@ -30,12 +30,12 @@ Computes four memorization metrics (Section 3.1 of the paper):
 
 Input format
 ------------
-  --test_book       JSON list of paragraph dicts with at least:
-                      {paragraph_id, paragraph_text}
-                    sorted by paragraph order.
+  --test_book       JSON list of excerpt dicts with at least:
+                      {excerpt_id, excerpt_text}
+                    sorted by excerpt order.
 
-  --generation_file JSON list of paragraph dicts with at least:
-                      {paragraph_id, paragraph_text, instruction,
+  --generation_file JSON list of excerpt dicts with at least:
+                      {excerpt_id, excerpt_text, instruction,
                        generations: [{generated_text, ...}, ...]}
 
 Example
@@ -79,11 +79,11 @@ def _tok_words(text: str) -> List[str]:
 
 
 def _pid_to_int(ex) -> int:
-    """Extract the numeric component from a paragraph_id string (e.g. 'p_id42' -> 42)."""
-    s = str(ex.get("paragraph_id", ""))
+    """Extract the numeric component from a excerpt_id string (e.g. 'p_id42' -> 42)."""
+    s = str(ex.get("excerpt_id", ""))
     m = re.search(r"(\d+)", s)
     if not m:
-        raise ValueError(f"paragraph_id must contain a number, got: {s!r}")
+        raise ValueError(f"excerpt_id must contain a number, got: {s!r}")
     return int(m.group(1))
 
 
@@ -192,16 +192,16 @@ class BookIndex:
 
 
 def _build_book_index(book_examples: list) -> Tuple[BookIndex, List[Tuple[int, int, str]]]:
-    """Build a global word-token array and per-paragraph word spans from the test book."""
+    """Build a global word-token array and per-excerpt word spans from the test book."""
     exs = sorted(book_examples, key=_pid_to_int)
     all_words: List[str] = []
-    para_word_spans: List[Tuple[int, int, str]] = []  # (start, end, paragraph_id)
+    para_word_spans: List[Tuple[int, int, str]] = []  # (start, end, excerpt_id)
     for ex in exs:
-        text = ex.get("paragraph_text", "") or ""
+        text = ex.get("excerpt_text", "") or ""
         words = _tok_words(text)
         start = len(all_words)
         all_words.extend(words)
-        para_word_spans.append((start, len(all_words), ex["paragraph_id"]))
+        para_word_spans.append((start, len(all_words), ex["excerpt_id"]))
     return BookIndex(all_words), para_word_spans
 
 
@@ -250,15 +250,15 @@ def _find_matches_against_book(
     return intervals
 
 
-def _find_raw_matches_per_paragraph(
+def _find_raw_matches_per_excerpt(
     gen_words: List[str],
     para_words: List[str],
     min_length: int,
 ) -> List[Tuple[int, int]]:
-    """Find all contiguous word matches between a generation and a single paragraph.
+    """Find all contiguous word matches between a generation and a single excerpt.
 
     Returns list of (para_start, para_end) intervals.
-    Used for Metrics 3 and 4 (per-generation, per-paragraph, no trimming).
+    Used for Metrics 3 and 4 (per-generation, per-excerpt, no trimming).
     """
     matches: List[Tuple[int, int]] = []
     if not para_words or not gen_words:
@@ -293,11 +293,11 @@ def _extract_span_text_from_book(
 ) -> str:
     """Map a word-token span [span_start, span_end) back to the original book text.
 
-    Handles spans that cross paragraph boundaries by joining text from
-    consecutive paragraphs.
+    Handles spans that cross excerpt boundaries by joining text from
+    consecutive excerpts.
     """
     pid_to_text = {
-        ex.get("paragraph_id"): (ex.get("paragraph_text") or "")
+        ex.get("excerpt_id"): (ex.get("excerpt_text") or "")
         for ex in (book_examples or [])
     }
 
@@ -343,13 +343,13 @@ def compute_bmc_and_longest_block(
 ) -> Tuple[float, int, Tuple[int, int]]:
     """Compute bmc@k (Algorithm 1) and the longest contiguous memorized block.
 
-    For each paragraph, all generations are matched against the full book.
+    For each excerpt, all generations are matched against the full book.
     Instruction m-gram trimming is applied, and the resulting spans are
     aggregated into a global coverage mask over the book's word tokens.
 
     Args:
         book_index: Pre-built k-gram index over the concatenated book.
-        examples:   Generation records (paragraph dicts with 'generations' field).
+        examples:   Generation records (excerpt dicts with 'generations' field).
         k:          Minimum contiguous match length in words (default: 5).
         trim_k:     Instruction m-gram size for overlap removal (default: 5).
 
@@ -365,7 +365,7 @@ def compute_bmc_and_longest_block(
 
     print(f"\nCalculating BMC@{k} and longest memorized block...")
 
-    pbar = tqdm(exs, desc="  Processing paragraphs", unit="para")
+    pbar = tqdm(exs, desc="  Processing excerpts", unit="para")
     for ex in pbar:
         instr_words = _tok_words(ex.get("instruction", ""))
         for gen in ex.get("generations", []) or []:
@@ -420,7 +420,7 @@ def compute_longest_regurgitated_span(
 ) -> Tuple[int, Optional[str], Optional[str]]:
     """Find the longest raw verbatim match from any single generation.
 
-    Each generation is matched only against its own paragraph text, with no
+    Each generation is matched only against its own excerpt text, with no
     instruction trimming or cross-generation merging applied.
 
     Args:
@@ -428,7 +428,7 @@ def compute_longest_regurgitated_span(
         k:        Minimum contiguous match length in words (default: 5).
 
     Returns:
-        (longest_span_words, matched_text_from_paragraph, generated_text)
+        (longest_span_words, matched_text_from_excerpt, generated_text)
     """
     longest = 0
     best_span: Optional[Tuple[int, int]] = None
@@ -438,9 +438,9 @@ def compute_longest_regurgitated_span(
     exs = sorted(examples, key=_pid_to_int)
 
     print(f"\nComputing the longest contiguous regurgitated span...")
-    pbar = tqdm(exs, desc="  Processing paragraphs", unit="para")
+    pbar = tqdm(exs, desc="  Processing excerpts", unit="para")
     for ex in pbar:
-        para_text = ex.get("paragraph_text", "")
+        para_text = ex.get("excerpt_text", "")
         para_words = _tok_words(para_text)
         if not para_words:
             continue
@@ -449,7 +449,7 @@ def compute_longest_regurgitated_span(
             gen_words = _tok_words(gen_text)
             if not gen_words:
                 continue
-            matches = _find_raw_matches_per_paragraph(gen_words, para_words, min_length=k)
+            matches = _find_raw_matches_per_excerpt(gen_words, para_words, min_length=k)
             for s, e in matches:
                 span_len = e - s
                 if span_len > longest:
@@ -500,7 +500,7 @@ def count_regurgitated_spans(
 ) -> int:
     """Count non-overlapping contiguous regurgitated spans exceeding a word threshold.
 
-    All raw per-paragraph matches are collected and mapped to global book
+    All raw per-excerpt matches are collected and mapped to global book
     coordinates.  Non-overlapping selection prefers longer spans: candidates
     are sorted by descending length and greedily selected.
 
@@ -517,8 +517,8 @@ def count_regurgitated_spans(
     para_words_map: Dict[str, List[str]] = {}
     offset = 0
     for ex in exs:
-        pid = ex["paragraph_id"]
-        words = _tok_words(ex.get("paragraph_text", ""))
+        pid = ex["excerpt_id"]
+        words = _tok_words(ex.get("excerpt_text", ""))
         para_words_map[pid] = words
         global_offset[pid] = offset
         offset += len(words)
@@ -527,9 +527,9 @@ def count_regurgitated_spans(
     order = 0
 
     print(f"\nCounting regurgitated spans > {span_threshold} words...")
-    pbar = tqdm(exs, desc="  Processing paragraphs", unit="para")
+    pbar = tqdm(exs, desc="  Processing excerpts", unit="para")
     for ex in pbar:
-        pid = ex["paragraph_id"]
+        pid = ex["excerpt_id"]
         para_words = para_words_map[pid]
         base = global_offset[pid]
         if not para_words:
@@ -538,7 +538,7 @@ def count_regurgitated_spans(
             gen_words = _tok_words(gen.get("generated_text", ""))
             if not gen_words:
                 continue
-            matches = _find_raw_matches_per_paragraph(gen_words, para_words, min_length=k)
+            matches = _find_raw_matches_per_excerpt(gen_words, para_words, min_length=k)
             for s, e in matches:
                 span_len = e - s
                 if span_len <= span_threshold:
@@ -579,8 +579,8 @@ def evaluate(
     """Compute all four memorization metrics.
 
     Args:
-        test_book_path:      Path to the test book JSON (list of paragraph dicts).
-        generation_file_path: Path to the generations JSON (list of paragraph dicts
+        test_book_path:      Path to the test book JSON (list of excerpt dicts).
+        generation_file_path: Path to the generations JSON (list of excerpt dicts
                               with a 'generations' field containing generated texts).
         k:                   Minimum contiguous match length in words (default: 5).
         trim_k:              Instruction m-gram size for trimming (default: 5).
@@ -633,7 +633,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--test_book", type=str, required=True,
-        help="Path to test book JSON file (list of paragraph dicts).",
+        help="Path to test book JSON file (list of excerpt dicts).",
     )
     parser.add_argument(
         "--generation_file", type=str, required=True,

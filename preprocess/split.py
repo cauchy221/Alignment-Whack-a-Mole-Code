@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Split extracted book text into paragraph-sized chunks for finetuning.
+Split extracted book text into excerpt-sized chunks for finetuning.
 
-Takes plain text produced by epub2txt.py and segments it into paragraphs of
+Takes plain text produced by epub2txt.py and segments it into excerpts of
 approximately 300-500 words.  First, the text is split on double newlines and
-paragraphs are merged/split to stay within word count bounds.  If any paragraph
+excerpts are merged/split to stay within word count bounds.  If any excerpt
 exceeds 500 words after the first pass, GPT-4o is used to re-segment it at
 grammatically natural boundaries.
 
@@ -25,19 +25,19 @@ from tqdm import tqdm
 client = OpenAI()
 
 
-def _segment_with_gpt(paragraph: str) -> list[str]:
-    """Use GPT-4o to split a long paragraph at natural grammatical boundaries."""
+def _segment_with_gpt(excerpt: str) -> list[str]:
+    """Use GPT-4o to split a long excerpt at natural grammatical boundaries."""
     completion = client.chat.completions.create(
         model="gpt-4o",
         messages=[
             {
                 "role": "user",
                 "content": (
-                    "Segment it into paragraphs of minimum length 300-500 words such that each paragraph "
+                    "Segment it into excerpts of minimum length 300-500 words such that each excerpt "
                     "is grammatical from the start and doesn't feel abruptly cut off. There should be zero "
-                    "deletion and break into paragraphs at grammatically natural places. Maintain the original "
-                    "word count. Avoid breaking into too many small paragraphs. Start directly. Don't say "
-                    "Here's or Here is ....\n\n" + paragraph
+                    "deletion and break into excerpts at grammatically natural places. Maintain the original "
+                    "word count. Avoid breaking into too many small excerpts. Start directly. Don't say "
+                    "Here's or Here is ....\n\n" + excerpt
                 ),
             }
         ],
@@ -47,13 +47,13 @@ def _segment_with_gpt(paragraph: str) -> list[str]:
 
 
 def _segment_by_word_count(text: str, min_words: int = 300, max_words: int = 500) -> list[str]:
-    """Split text on double newlines and merge adjacent paragraphs to reach target size."""
-    paragraphs = re.split(r'\n\n+', text)
+    """Split text on double newlines and merge adjacent excerpts to reach target size."""
+    excerpts = re.split(r'\n\n+', text)
     segmented = []
     current = ""
     count = 0
 
-    for para in paragraphs:
+    for para in excerpts:
         words = para.split()
         if count + len(words) > max_words:
             if count >= min_words:
@@ -78,36 +78,36 @@ def main(input_file_path: str, output_file_path: str, book_name: str, author_nam
         text = f.read()
 
     # First pass: merge/split by word count heuristics
-    initial_paragraphs = _segment_by_word_count(text)
+    initial_excerpts = _segment_by_word_count(text)
 
-    # Second pass: use GPT to re-segment any oversized paragraphs
-    final_paragraphs = []
-    for para in tqdm(initial_paragraphs, desc="Processing paragraphs"):
+    # Second pass: use GPT to re-segment any oversized excerpts
+    final_excerpts = []
+    for para in tqdm(initial_excerpts, desc="Processing excerpts"):
         word_count = len(para.split())
         if word_count > 500:
             try:
                 splits = _segment_with_gpt(para)
-                final_paragraphs.extend(splits)
+                final_excerpts.extend(splits)
             except Exception as e:
                 print(f"Segmentation API failed: {e}", file=sys.stderr)
-                final_paragraphs.append(para)
+                final_excerpts.append(para)
         else:
-            final_paragraphs.append(para)
+            final_excerpts.append(para)
 
     output = [
         {
             "book_name": book_name,
             "author_name": author_name,
-            "paragraph_id": f"p_id{i + 1}",
-            "paragraph_text": para,
+            "excerpt_id": f"p_id{i + 1}",
+            "excerpt_text": para,
         }
-        for i, para in enumerate(final_paragraphs)
+        for i, para in enumerate(final_excerpts)
     ]
 
     with open(output_file_path, 'w', encoding='utf-8') as f:
         json.dump(output, f, indent=4, ensure_ascii=False)
 
-    print(f"Wrote {len(output)} paragraphs to {output_file_path}")
+    print(f"Wrote {len(output)} excerpts to {output_file_path}")
 
 
 if __name__ == "__main__":

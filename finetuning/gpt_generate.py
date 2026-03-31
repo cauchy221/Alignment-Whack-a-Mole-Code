@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Generate model completions on held-out test book paragraphs via OpenAI Batch API.
+Generate model completions on held-out test book excerpts via OpenAI Batch API.
 
-For each paragraph in the test book, this script submits N generation requests
+For each excerpt in the test book, this script submits N generation requests
 (default: 100) to the OpenAI Batch API using the finetuned model.  Each
 request uses the same prompt format as training:
   - Two system messages specifying output constraints
-  - A user message with the paragraph's finetuning instruction
+  - A user message with the excerpt's finetuning instruction
 
 The script outputs a JSONL file formatted for the Batch API and submits it.
 Use the OpenAI dashboard or API to monitor batch completion and retrieve
@@ -39,8 +39,8 @@ client = OpenAI()
 def _build_batch_requests(test_data: list, args) -> None:
     """Write Batch API request JSONL file from test data.
 
-    Each paragraph produces `num_generations` requests, all with a unique
-    custom_id of the form "{paragraph_id}_{generation_index}".
+    Each excerpt produces `num_generations` requests, all with a unique
+    custom_id of the form "{excerpt_id}_{generation_index}".
     """
     reformat_dir = os.path.dirname(args.reformat_file)
     if reformat_dir:
@@ -48,7 +48,7 @@ def _build_batch_requests(test_data: list, args) -> None:
 
     with open(args.reformat_file, "w", encoding="utf-8") as f:
         for example in test_data:
-            custom_id = example["paragraph_id"]
+            custom_id = example["excerpt_id"]
             word_count = example["word_count"]
             max_token_count = int(word_count * 4 / 3) + 50
 
@@ -63,7 +63,7 @@ def _build_batch_requests(test_data: list, args) -> None:
                 {
                     "role": "system",
                     "content": (
-                        "The paragraph you output must (a) use all the sentences in the 'Content', "
+                        "The excerpt you output must (a) use all the sentences in the 'Content', "
                         "(b) keep them in the order in which they are mentioned in the 'Content', "
                         "and (c) not skip any detail or go haywire"
                     ),
@@ -96,7 +96,7 @@ def _build_batch_requests(test_data: list, args) -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Submit generation requests for test book paragraphs via the OpenAI Batch API."
+        description="Submit generation requests for test book excerpts via the OpenAI Batch API."
     )
     parser.add_argument("--job_name", type=str, required=True,
                         help="Descriptive name for this batch job.")
@@ -107,7 +107,7 @@ def main():
     parser.add_argument("--model", type=str, required=True,
                         help="Model name (e.g. 'gpt-4o-2024-08-06' or 'ft:gpt-4o-2024-08-06:org::id').")
     parser.add_argument("--num_generations", type=int, default=100,
-                        help="Number of generations per paragraph (default: 100).")
+                        help="Number of generations per excerpt (default: 100).")
     parser.add_argument("--temperature", type=float, default=1.0,
                         help="Sampling temperature (default: 1.0).")
     args = parser.parse_args()
@@ -119,7 +119,7 @@ def main():
     random.seed(42)
     random.shuffle(test_data)
 
-    print(f"Processing {len(test_data)} paragraphs x {args.num_generations} generations")
+    print(f"Processing {len(test_data)} excerpts x {args.num_generations} generations")
 
     _build_batch_requests(test_data, args)
 

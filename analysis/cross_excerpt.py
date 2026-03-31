@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 """
-Cross-paragraph memorization analysis (Section 5.2).
+Cross-excerpt memorization analysis (Section 5.2).
 
 For each memorized span (a contiguous word sequence found in both a model
 generation and the book), this script determines:
-  - Target paragraph B: the paragraph in the book where the span is located.
-  - Source paragraphs A: the paragraphs whose generations produced this span.
-  - Cross-paragraph status: whether any source A differs from target B.
+  - Target excerpt B: the excerpt in the book where the span is located.
+  - Source excerpts A: the excerpts whose generations produced this span.
+  - Cross-excerpt status: whether any source A differs from target B.
 
-A span is "cross-paragraph" when a model, prompted with the summary of
-paragraph A, generates verbatim text that belongs to a *different* paragraph B
-in the same book.  The cross-paragraph ratio (fraction of spans with at least
-one cross-paragraph source) quantifies how often models retrieve content from
+A span is "cross-excerpt" when a model, prompted with the summary of
+excerpt A, generates verbatim text that belongs to a *different* excerpt B
+in the same book.  The cross-excerpt ratio (fraction of spans with at least
+one cross-excerpt source) quantifies how often models retrieve content from
 semantically related but distinct regions.
 
 Usage:
-    python analysis/cross_paragraph.py \\
+    python analysis/cross_excerpt.py \\
         --book data/example_book.json \\
         --runs data/example_gens_gpt.json \\
-        --out cross_paragraph_report.json
+        --out cross_excerpt_report.json
 """
 
 from __future__ import annotations
@@ -104,8 +104,8 @@ class BookIndex:
             for i in range(start, end):
                 self._word_to_pid[i] = pid
 
-    def get_containing_paragraph(self, start: int, end: int) -> Optional[str]:
-        """Return paragraph ID if span is strictly within one paragraph, else None."""
+    def get_containing_excerpt(self, start: int, end: int) -> Optional[str]:
+        """Return excerpt ID if span is strictly within one excerpt, else None."""
         if end <= start:
             return None
         first_pid = self._word_to_pid.get(start)
@@ -118,8 +118,8 @@ class BookIndex:
 
 
 def build_book_index(book_examples: List[Dict[str, Any]]) -> BookIndex:
-    """Build a global word-level index from sorted book paragraphs."""
-    exs = sorted(book_examples, key=lambda ex: _pid_to_int(str(ex.get("paragraph_id"))))
+    """Build a global word-level index from sorted book excerpts."""
+    exs = sorted(book_examples, key=lambda ex: _pid_to_int(str(ex.get("excerpt_id"))))
 
     disp_tokens: List[str] = []
     word_tokens: List[str] = []
@@ -130,8 +130,8 @@ def build_book_index(book_examples: List[Dict[str, Any]]) -> BookIndex:
     word_offset = 0
 
     for ex in exs:
-        pid = str(ex.get("paragraph_id"))
-        text = ex.get("paragraph_text") or ""
+        pid = str(ex.get("excerpt_id"))
+        text = ex.get("excerpt_text") or ""
 
         ex_disp = wordpunct_tokenize(text)
         ex_words = _norm_words(ex_disp)
@@ -268,24 +268,24 @@ def _filter_subset_spans(
 # Main analysis
 # ---------------------------------------------------------------------------
 
-def analyze_cross_paragraph(
+def analyze_cross_excerpt(
     book_index: BookIndex,
     runs: List[Dict[str, Any]],
     k_match: int,
     min_length: int,
 ) -> Dict[Tuple[int, int], Dict[str, Any]]:
-    """Analyze cross-paragraph memorization across all generations.
+    """Analyze cross-excerpt memorization across all generations.
 
-    For each span found in any generation, determines which paragraphs'
-    generations produced it (sources) and which paragraph contains it (target).
+    For each span found in any generation, determines which excerpts'
+    generations produced it (sources) and which excerpt contains it (target).
 
     Returns a dict mapping (start, end) spans to their analysis results.
     """
     spans_with_sources: List[Tuple[Tuple[int, int], str, str, Optional[int]]] = []
-    exs = sorted(runs, key=lambda ex: _pid_to_int(str(ex.get("paragraph_id"))))
+    exs = sorted(runs, key=lambda ex: _pid_to_int(str(ex.get("excerpt_id"))))
 
     for ex in exs:
-        pid_A = str(ex.get("paragraph_id", "?"))
+        pid_A = str(ex.get("excerpt_id", "?"))
         for idx, gen in enumerate(ex.get("generations", []) or []):
             gen_text = gen.get("generated_text") or gen.get("generation") or ""
             spans = _find_spans_for_generation(book_index, gen_text, k_match, min_length)
@@ -302,7 +302,7 @@ def analyze_cross_paragraph(
     result: Dict[Tuple[int, int], Dict[str, Any]] = {}
     for span, sources_dict in span_sources.items():
         start, end = span
-        target_B = book_index.get_containing_paragraph(start, end)
+        target_B = book_index.get_containing_excerpt(start, end)
         result[span] = {"sources": sources_dict, "target_B": target_B}
     return result
 
@@ -313,7 +313,7 @@ def analyze_cross_paragraph(
 
 def main() -> None:
     ap = argparse.ArgumentParser(
-        description="Analyze cross-paragraph memorization in model generations (Section 5.2)."
+        description="Analyze cross-excerpt memorization in model generations (Section 5.2)."
     )
     ap.add_argument("--book", required=True,
                     help="Path to test book JSON.")
@@ -328,11 +328,11 @@ def main() -> None:
     ap.add_argument("--max-spans-out", type=int, default=100,
                     help="Max spans in output JSON (default: 100, -1 for no limit).")
     ap.add_argument("--max-other-pids", type=int, default=5,
-                    help="Max cross-paragraph sources per span (default: 5, -1 for no limit).")
+                    help="Max cross-excerpt sources per span (default: 5, -1 for no limit).")
     ap.add_argument("--include-noncross", action="store_true",
-                    help="Include spans with no cross-paragraph sources in output.")
-    ap.add_argument("--out", default="cross_paragraph_report.json",
-                    help="Output JSON path (default: cross_paragraph_report.json).")
+                    help="Include spans with no cross-excerpt sources in output.")
+    ap.add_argument("--out", default="cross_excerpt_report.json",
+                    help="Output JSON path (default: cross_excerpt_report.json).")
     args = ap.parse_args()
 
     with open(args.book, "r", encoding="utf-8") as f:
@@ -342,11 +342,11 @@ def main() -> None:
 
     book_index = build_book_index(book)
 
-    # Build paragraph text/instruction lookups
-    pid_to_text = {str(ex.get("paragraph_id", "?")): ex.get("paragraph_text", "") for ex in book}
-    pid_to_instr = {str(ex.get("paragraph_id", "?")): ex.get("instruction", "") for ex in runs}
+    # Build excerpt text/instruction lookups
+    pid_to_text = {str(ex.get("excerpt_id", "?")): ex.get("excerpt_text", "") for ex in book}
+    pid_to_instr = {str(ex.get("excerpt_id", "?")): ex.get("instruction", "") for ex in runs}
 
-    span_data = analyze_cross_paragraph(
+    span_data = analyze_cross_excerpt(
         book_index=book_index,
         runs=runs,
         k_match=args.match_gram,
@@ -376,7 +376,7 @@ def main() -> None:
             meta = sources_dict.get(A, {})
             other_details.append({
                 "A_pid": A,
-                "A_paragraph_text": pid_to_text.get(A, ""),
+                "A_excerpt_text": pid_to_text.get(A, ""),
                 "A_instruction": pid_to_instr.get(A, ""),
                 "A_generation": meta.get("generation", ""),
                 "A_generation_num": meta.get("gen_num"),
@@ -390,7 +390,7 @@ def main() -> None:
             "span_length": end - start,
             "span_text": span_text,
             "target_B": target_B,
-            "B_paragraph_text": pid_to_text.get(target_B, ""),
+            "B_excerpt_text": pid_to_text.get(target_B, ""),
             "B_instruction": pid_to_instr.get(target_B, ""),
             "is_cross": is_cross,
             "num_sources": len(sources),

@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Finetune Gemini-2.5-Pro on paragraph-summary pairs via the Vertex AI API.
+Finetune Gemini-2.5-Pro on excerpt-summary pairs via the Vertex AI API.
 
 Converts preprocessed book data into the Gemini supervised finetuning format
 (JSONL with "contents" field), uploads it to Google Cloud Storage, and launches
 a tuning job through the Vertex AI GenAI client.
 
 The training JSONL format pairs each instruction (user turn) with the target
-paragraph text (model turn):
+excerpt text (model turn):
     {"contents": [
         {"role": "user", "parts": [{"text": "<instruction>"}]},
-        {"role": "model", "parts": [{"text": "<paragraph_text>"}]}
+        {"role": "model", "parts": [{"text": "<excerpt_text>"}]}
     ]}
 
 Usage:
@@ -44,7 +44,7 @@ def prepare_training_data(json_file_path: str) -> list:
 
     Each example becomes a two-turn conversation:
       - A user turn with the finetuning instruction (summary + word count)
-      - A model turn with the target paragraph text
+      - A model turn with the target excerpt text
     """
     with open(json_file_path, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -53,7 +53,7 @@ def prepare_training_data(json_file_path: str) -> list:
         {
             "contents": [
                 {"role": "user", "parts": [{"text": item["instruction"]}]},
-                {"role": "model", "parts": [{"text": item["paragraph_text"]}]},
+                {"role": "model", "parts": [{"text": item["excerpt_text"]}]},
             ]
         }
         for item in data
@@ -80,7 +80,7 @@ def upload_jsonl_to_gcs(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Finetune Gemini-2.5-Pro on book paragraph-summary pairs via Vertex AI."
+        description="Finetune Gemini-2.5-Pro on book excerpt-summary pairs via Vertex AI."
     )
     parser.add_argument("--project_id", type=str, required=True,
                         help="Google Cloud project ID.")

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Generate model completions on held-out test book paragraphs via the Vertex AI
+Generate model completions on held-out test book excerpts via the Vertex AI
 Batch Prediction API for Gemini models.
 
-For each paragraph in the test book, this script creates N generation requests
+For each excerpt in the test book, this script creates N generation requests
 (default: 100), uploads them to Google Cloud Storage as JSONL, and submits a
-batch prediction job.  Each request contains the paragraph's finetuning
+batch prediction job.  Each request contains the excerpt's finetuning
 instruction as a single user turn.
 
 The script outputs a JSONL file and submits it to the Vertex AI Batch API.
@@ -41,12 +41,12 @@ from google.cloud import storage
 def _build_batch_requests(test_data: list, num_generations: int, temperature: float) -> list:
     """Build Vertex AI batch prediction request dicts.
 
-    Each paragraph produces `num_generations` requests with a unique
-    metadata ID of the form "{paragraph_id}_{generation_index}".
+    Each excerpt produces `num_generations` requests with a unique
+    metadata ID of the form "{excerpt_id}_{generation_index}".
     """
     requests = []
     for example in test_data:
-        pid = example["paragraph_id"]
+        pid = example["excerpt_id"]
         instruction = example["instruction"]
 
         request_body = {
@@ -86,7 +86,7 @@ def _upload_to_gcs(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Submit generation requests for test book paragraphs via the Vertex AI Batch API."
+        description="Submit generation requests for test book excerpts via the Vertex AI Batch API."
     )
     parser.add_argument("--project_id", type=str, required=True,
                         help="Google Cloud project ID.")
@@ -101,7 +101,7 @@ def main():
     parser.add_argument("--job_name", type=str, required=True,
                         help="Descriptive name for this batch job.")
     parser.add_argument("--num_generations", type=int, default=100,
-                        help="Number of generations per paragraph (default: 100).")
+                        help="Number of generations per excerpt (default: 100).")
     parser.add_argument("--temperature", type=float, default=1.0,
                         help="Sampling temperature (default: 1.0).")
     args = parser.parse_args()
@@ -113,7 +113,7 @@ def main():
     with open(args.test_file, "r", encoding="utf-8") as f:
         test_data = json.load(f)
 
-    print(f"Processing {len(test_data)} paragraphs x {args.num_generations} generations")
+    print(f"Processing {len(test_data)} excerpts x {args.num_generations} generations")
 
     # Build and upload batch requests
     requests = _build_batch_requests(test_data, args.num_generations, args.temperature)

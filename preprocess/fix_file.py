@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Post-process segmented book chunks: merge short paragraphs, compute word
+Post-process segmented book chunks: merge short excerpts, compute word
 counts, and generate plot summaries for finetuning instructions.
 
 Steps:
@@ -10,7 +10,7 @@ Steps:
      next chunk instead).
   3. Generate a plot summary for each chunk using GPT-4o and construct the
      finetuning instruction in the format:
-       "Write a {word_count} word paragraph about the content below emulating
+       "Write a {word_count} word excerpt about the content below emulating
         the style and voice of {author}\\n\\nContent: {summary}"
 
 Usage:
@@ -34,22 +34,22 @@ _ID_NUM_RE = re.compile(r'(\d+)$')
 
 
 def _id_to_num(pid: str) -> int:
-    """Extract trailing integer from paragraph_id (e.g. 'p_id204' -> 204)."""
+    """Extract trailing integer from excerpt_id (e.g. 'p_id204' -> 204)."""
     m = _ID_NUM_RE.search(pid or "")
     return int(m.group(1)) if m else 0
 
 
 def _make_merged(first: dict, second: dict) -> dict:
     """Merge two adjacent chunks into one, concatenating their text."""
-    text = (first.get("paragraph_text", "") or "").rstrip() + " " + (second.get("paragraph_text", "") or "").lstrip()
+    text = (first.get("excerpt_text", "") or "").rstrip() + " " + (second.get("excerpt_text", "") or "").lstrip()
     wc = int(first.get("word_count", 0)) + int(second.get("word_count", 0))
-    pid_smallest = min(_id_to_num(first.get("paragraph_id", "")),
-                       _id_to_num(second.get("paragraph_id", "")))
+    pid_smallest = min(_id_to_num(first.get("excerpt_id", "")),
+                       _id_to_num(second.get("excerpt_id", "")))
     return {
         "book_name": first.get("book_name"),
         "author_name": first.get("author_name"),
-        "paragraph_id": f"p_id{pid_smallest}",
-        "paragraph_text": text,
+        "excerpt_id": f"p_id{pid_smallest}",
+        "excerpt_text": text,
         "word_count": wc,
         "detail": "",
         "instruction": "",
@@ -110,7 +110,7 @@ def _add_word_counts(data: list) -> list:
     """Recompute word counts for chunks where word_count is 0."""
     for example in tqdm(data, desc="Word counts", unit="chunk"):
         if example.get("word_count", 0) == 0:
-            example["word_count"] = len(example["paragraph_text"].split())
+            example["word_count"] = len(example["excerpt_text"].split())
         else:
             example["word_count"] = int(example["word_count"])
     return data
@@ -120,7 +120,7 @@ def _add_summaries(data: list) -> list:
     """Generate plot summaries and construct finetuning instructions via GPT-4o."""
     for example in tqdm(data, desc="Summaries", unit="chunk"):
         if example.get("detail", "") == "":
-            text = example["paragraph_text"]
+            text = example["excerpt_text"]
             word_count = example["word_count"]
             response_count = word_count // 2 + 1
             prompt = (
@@ -139,7 +139,7 @@ def _add_summaries(data: list) -> list:
 
             example["detail"] = detail
             example["instruction"] = (
-                f"Write a {word_count} word paragraph about the content below "
+                f"Write a {word_count} word excerpt about the content below "
                 f"emulating the style and voice of {example['author_name']}"
                 f"\n\nContent: {detail}"
             )
@@ -149,10 +149,10 @@ def _add_summaries(data: list) -> list:
 
 def main():
     ap = argparse.ArgumentParser(
-        description="Post-process book chunks: merge short paragraphs and generate plot summaries."
+        description="Post-process book chunks: merge short excerpts and generate plot summaries."
     )
     ap.add_argument("--input_json", required=True,
-                    help="Path to input JSON file (array of paragraph dicts).")
+                    help="Path to input JSON file (array of excerpt dicts).")
     ap.add_argument("--output_json", default=None,
                     help="Path to write the processed JSON (defaults to overwriting input).")
     args = ap.parse_args()

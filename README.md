@@ -4,7 +4,7 @@ The paper is now on [arxiv](https://arxiv.org/abs/2603.20957) and check out our 
 
 This repository contains the data preprocessing pipeline, finetuning scripts, memorization evaluation code, and analysis scripts for our paper.
 
-We provide partial example files in [`data/`](data/) containing a small subset of paragraphs and generations from *The Road* by Cormac McCarthy. Full book content and model generations are not included because the books are copyrighted and the generations contain large portions of verbatim text.
+We provide partial example files in [`data/`](data/) containing a small subset of excerpts and generations from *The Road* by Cormac McCarthy. Full book content and model generations are not included because the books are copyrighted and the generations contain large portions of verbatim text.
 
 ## Setup
 
@@ -55,7 +55,7 @@ nltk.download('punkt_tab')
 
 ## Data Preprocessing
 
-We assume you already have the EPUB file for each book. The preprocessing pipeline converts an EPUB into a JSON file of paragraph chunks with plot summaries, ready for finetuning and evaluation. The output format matches [`data/example_book.json`](data/example_book.json).
+We assume you already have the EPUB file for each book. The preprocessing pipeline converts an EPUB into a JSON file of excerpt chunks with plot summaries, ready for finetuning and evaluation. The output format matches [`data/example_book.json`](data/example_book.json).
 
 ### Step 1: Convert EPUB to plain text
 
@@ -63,13 +63,13 @@ We assume you already have the EPUB file for each book. The preprocessing pipeli
 python preprocess/epub2txt.py book.epub book.txt --plain-text --no-metadata --ftfy
 ```
 
-### Step 2: Split text into paragraph chunks
+### Step 2: Split text into excerpt chunks
 
 ```bash
 python preprocess/split.py book.txt book_chunks.json "Book Title" "Author Name"
 ```
 
-This segments the text into paragraphs of approximately 300-500 words. Paragraphs exceeding 500 words are re-segmented using GPT-4o at natural grammatical boundaries.
+This segments the text into excerpts of approximately 300-500 words. Excerpts exceeding 500 words are re-segmented using GPT-4o at natural grammatical boundaries.
 
 ### Step 3: Merge short chunks and generate summaries
 
@@ -81,11 +81,11 @@ This step:
 
 - Merges chunks shorter than 300 words into adjacent chunks.
 - Generates a plot summary for each chunk using GPT-4o.
-- Constructs the finetuning instruction in the format: `"Write a {N} word paragraph about the content below emulating the style and voice of {Author}\n\nContent: {summary}"`.
+- Constructs the finetuning instruction in the format: `"Write a {N} word excerpt about the content below emulating the style and voice of {Author}\n\nContent: {summary}"`.
 
 ## Finetuning and Generation
 
-We provide scripts for finetuning and generating completions via the OpenAI, Vertex AI, and [Tinker](https://tinker-docs.thinkingmachines.ai/) APIs. We sample 100 completions per paragraph at temperature 1.0 (see Appendix A.3 of the paper).
+We provide scripts for finetuning and generating completions via the OpenAI, Vertex AI, and [Tinker](https://tinker-docs.thinkingmachines.ai/) APIs. We sample 100 completions per excerpt at temperature 1.0 (see Appendix A.3 of the paper).
 
 ### GPT-4o
 
@@ -176,7 +176,7 @@ We provide four memorization metrics (Section 3.1 of the paper):
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **BMC@k**                                | Fraction of words in the test book covered by at least one extracted span of &ge; k matching words, aggregated across all generations with instruction m-gram trimming (Algorithm 1). |
 | **Longest Contiguous Memorized Block**   | Longest contiguous run of covered word positions after BMC@k aggregation.                                                                                                             |
-| **Longest Contiguous Regurgitated Span** | Longest raw verbatim match from a single generation against its paragraph, without trimming.                                                                                          |
+| **Longest Contiguous Regurgitated Span** | Longest raw verbatim match from a single generation against its excerpt, without trimming.                                                                                          |
 | **# Contiguous Regurgitated Spans > T**  | Count of distinct non-overlapping raw spans exceeding T words across all generations.                                                                                                 |
 
 
@@ -205,30 +205,30 @@ python evaluation/memorization_eval_metrics.py \
 
 ### Input format
 
-**Test book** (`--test_book`): JSON list of paragraph dicts. See [`data/example_book.json`](data/example_book.json) for a complete example.
+**Test book** (`--test_book`): JSON list of excerpt dicts. See [`data/example_book.json`](data/example_book.json) for a complete example.
 
 ```json
 [
   {
     "book_name": "The Road",
     "author_name": "Cormac McCarthy",
-    "paragraph_id": "p_id1",
-    "paragraph_text": "...",
+    "excerpt_id": "p_id1",
+    "excerpt_text": "...",
     "word_count": 350,
     "detail": "...",
-    "instruction": "Write a 350 word paragraph ..."
+    "instruction": "Write a 350 word excerpt ..."
   }
 ]
 ```
 
-**Generations** (`--generation_file`): JSON list with a `generations` field per paragraph. See [`data/example_gens_gpt.json`](data/example_gens_gpt.json) for a complete example.
+**Generations** (`--generation_file`): JSON list with a `generations` field per excerpt. See [`data/example_gens_gpt.json`](data/example_gens_gpt.json) for a complete example.
 
 ```json
 [
   {
-    "paragraph_id": "p_id1",
-    "paragraph_text": "...",
-    "instruction": "Write a 350 word paragraph ...",
+    "excerpt_id": "p_id1",
+    "excerpt_text": "...",
+    "instruction": "Write a 350 word excerpt ...",
     "generations": [
       {"generation_num": 66, "generated_text": "..."},
       {"generation_num": 94, "generated_text": "..."}
@@ -243,15 +243,15 @@ python evaluation/memorization_eval_metrics.py \
 
 ## Analysis
 
-### Cross-paragraph memorization (Section 5.2)
+### Cross-excerpt memorization (Section 5.2)
 
-Analyze whether models generate verbatim text from paragraphs other than the one prompted:
+Analyze whether models generate verbatim text from excerpts other than the one prompted:
 
 ```bash
-python analysis/cross_paragraph.py \
+python analysis/cross_excerpt.py \
     --book data/example_book.json \
     --runs data/example_gens_gpt.json \
-    --out cross_paragraph_report.json
+    --out cross_excerpt_report.json
 ```
 
 ### Cross-model similarity (Section 5.3)

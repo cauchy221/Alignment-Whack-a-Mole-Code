@@ -5,7 +5,7 @@ Convert preprocessed book JSON to Tinker's chat JSONL format for DeepSeek-V3.1.
 Tinker expects JSONL files where each line is a conversation with a "messages"
 field containing user/assistant turns.  For DeepSeek-V3.1, no system prompt is
 used -- each example is a single user turn (the instruction) paired with an
-assistant turn (the target paragraph text).
+assistant turn (the target excerpt text).
 
 Usage:
     python finetuning/deepseek_convert.py \
@@ -37,7 +37,7 @@ def main():
             message = {
                 "messages": [
                     {"role": "user", "content": example["instruction"]},
-                    {"role": "assistant", "content": example["paragraph_text"]},
+                    {"role": "assistant", "content": example["excerpt_text"]},
                 ]
             }
             f.write(json.dumps(message, ensure_ascii=False) + "\n")

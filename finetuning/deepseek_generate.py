@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Generate model completions on held-out test book paragraphs using a finetuned
+Generate model completions on held-out test book excerpts using a finetuned
 DeepSeek-V3.1 model via Tinker.
 
-For each paragraph, this script generates N completions (default: 100) at
+For each excerpt, this script generates N completions (default: 100) at
 temperature 1.0 using Tinker's sampling client.  The output is saved directly
 in the evaluation input format (JSON list with a "generations" field per
-paragraph), so no post-processing is needed.
+excerpt), so no post-processing is needed.
 
 The script supports resuming from a partial output file (--resume flag) and
 periodic autosaving.
@@ -50,7 +50,7 @@ def _save_partial(path: str, data: list) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Generate completions for test paragraphs using a finetuned DeepSeek model via Tinker."
+        description="Generate completions for test excerpts using a finetuned DeepSeek model via Tinker."
     )
     parser.add_argument("--test_data", type=str, required=True,
                         help="Path to test data in Tinker JSONL format (from deepseek_convert.py).")
@@ -67,9 +67,9 @@ def main() -> None:
     parser.add_argument("--temperature", type=float, default=1.0,
                         help="Sampling temperature (default: 1.0).")
     parser.add_argument("--num_generations", type=int, default=100,
-                        help="Number of generations per paragraph (default: 100).")
+                        help="Number of generations per excerpt (default: 100).")
     parser.add_argument("--autosave_every", type=int, default=5,
-                        help="Save progress every N paragraphs (default: 5).")
+                        help="Save progress every N excerpts (default: 5).")
     parser.add_argument("--resume", action="store_true",
                         help="Resume from existing partial output file.")
     args = parser.parse_args()

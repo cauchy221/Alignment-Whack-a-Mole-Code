@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Finetune DeepSeek-V3.1 on paragraph-summary pairs via Tinker.
+Finetune DeepSeek-V3.1 on excerpt-summary pairs via Tinker.
 
 Launches a LoRA supervised finetuning job on the Tinker platform.  Training
 data must first be converted to Tinker's chat JSONL format using
