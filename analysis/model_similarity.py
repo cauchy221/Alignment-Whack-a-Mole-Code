@@ -144,6 +144,7 @@ def _trim_instruction(
     intervals: List[Tuple[int, int]], k: int, trim_k: int,
 ) -> List[Tuple[int, int]]:
     trimmed: List[Tuple[int, int]] = []
+    instr_k = _kset(instr_words, trim_k) if trim_k > 0 else set()
     for raw in intervals:
         s, e = raw
         span_len = e - s
@@ -151,7 +152,6 @@ def _trim_instruction(
             if span_len >= k:
                 trimmed.append(raw)
             continue
-        instr_k = _kset(instr_words, trim_k)
         removes = []
         for i in range(span_len - trim_k + 1):
             kg = tuple(gold_words[s + i : s + i + trim_k])
