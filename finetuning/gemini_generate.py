@@ -48,11 +48,14 @@ def _build_batch_requests(test_data: list, num_generations: int, temperature: fl
     for example in test_data:
         pid = example["excerpt_id"]
         instruction = example["instruction"]
+        word_count = example.get("word_count", 0)
+        max_output_tokens = int(word_count * 4 / 3) + 50
 
         request_body = {
             "contents": [{"role": "user", "parts": [{"text": instruction}]}],
             "generationConfig": {
                 "temperature": temperature,
+                "maxOutputTokens": max_output_tokens,
                 "thinkingConfig": {"includeThoughts": False},
             },
         }
