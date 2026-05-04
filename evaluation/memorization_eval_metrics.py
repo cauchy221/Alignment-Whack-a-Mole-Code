@@ -150,6 +150,7 @@ def _trim_instruction_kgrams(
     retained only if they are >= min_length words.
     """
     all_trimmed: List[Tuple[int, int]] = []
+    instr_k = _kset(instr_words, k_for_exclusion) if k_for_exclusion > 0 else set()
     for raw_iv in intervals:
         s, e = raw_iv
         span_len = e - s
@@ -157,7 +158,6 @@ def _trim_instruction_kgrams(
             if span_len >= min_length:
                 all_trimmed.append(raw_iv)
             continue
-        instr_k = _kset(instr_words, k_for_exclusion)
         removes = []
         for i in range(span_len - k_for_exclusion + 1):
             kg = tuple(gold_words[s + i : s + i + k_for_exclusion])
