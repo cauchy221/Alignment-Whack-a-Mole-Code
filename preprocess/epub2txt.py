@@ -23,10 +23,7 @@ from io import BytesIO
 import html2text
 from natsort import natsorted
 
-try:
-    from urllib import unquote
-except ImportError:
-    from urllib.parse import unquote
+from urllib.parse import unquote
 
 
 # ---------------------------------------------------------------------------
