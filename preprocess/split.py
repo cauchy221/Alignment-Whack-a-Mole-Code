@@ -43,6 +43,8 @@ def _segment_with_gpt(excerpt: str) -> list[str]:
         ],
     )
     response = completion.choices[0].message.content
+    if response is None:
+        return [excerpt]
     return [seg.strip() for seg in response.split('\n\n') if seg.strip()]
 
 
