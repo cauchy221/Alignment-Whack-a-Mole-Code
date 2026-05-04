@@ -19,6 +19,7 @@ Requires:
 """
 
 import argparse
+import csv
 import json
 import os
 import time
@@ -86,10 +87,12 @@ def _log_job(row: list, jobs_log_path: str):
     """Append a row to the CSV job log."""
     os.makedirs(os.path.dirname(jobs_log_path) or ".", exist_ok=True)
     header_needed = not os.path.exists(jobs_log_path)
-    with open(jobs_log_path, "a", encoding="utf-8") as f:
+    with open(jobs_log_path, "a", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
         if header_needed:
-            f.write("timestamp,author_name,job_name,training_jsonl,training_file_id,job_id,base_model,suffix\n")
-        f.write(",".join(row) + "\n")
+            writer.writerow(["timestamp", "author_name", "job_name", "training_jsonl",
+                             "training_file_id", "job_id", "base_model", "suffix"])
+        writer.writerow(row)
 
 
 def main():
